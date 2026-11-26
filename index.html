@@ -396,7 +396,7 @@ th {background:#f5f8fb}
         <div class="field"><label for="vesselLbp">LBP / LPP (m) *</label><input id="vesselLbp" type="number" min="0" step="0.001" required></div>
         <div class="field"><label for="vesselBreadth">Breadth (m) *</label><input id="vesselBreadth" type="number" min="0" step="0.001" required></div>
         <div class="field"><label for="vesselDepth">Depth (m) *</label><input id="vesselDepth" type="number" min="0" step="0.001" required></div>
-        <div class="field"><label for="vesselLightship">Lightship Displacement (MT) *</label><input id="vesselLightship" type="number" min="0" step="0.001" required></div>
+        <div class="field"><label for="vesselLightship">Lightship Displacement (MT) (Optional)</label><input id="vesselLightship" type="number" min="0" step="0.001" placeholder="Boleh dikosongkan jika belum tersedia"></div>
         <div class="field"><label for="vesselDensity">Default Water Density (t/m³)</label><input id="vesselDensity" type="number" min="0" step="0.001" placeholder="Isi sesuai data kapal bila tersedia"></div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -658,15 +658,19 @@ async function saveVessel() {
   const lbp_lpp = vesselNumber('vesselLbp');
   const breadth = vesselNumber('vesselBreadth');
   const depth = vesselNumber('vesselDepth');
-  const lightship_displacement = vesselNumber('vesselLightship');
+  const lightshipRaw = document.getElementById('vesselLightship').value.trim();
+  const lightship_displacement = lightshipRaw === '' ? null : Number(lightshipRaw);
   const densityRaw = document.getElementById('vesselDensity').value.trim();
   const default_water_density = densityRaw === '' ? null : Number(densityRaw);
   const recordId = document.getElementById('vesselRecordId').value;
 
   if (!barge_name || !barge_id) return setVesselMessage('Barge Name dan Barge ID wajib diisi.', true);
-  const requiredNumbers = [lbp_lpp, breadth, depth, lightship_displacement];
+  const requiredNumbers = [lbp_lpp, breadth, depth];
   if (requiredNumbers.some(v => v === null || !Number.isFinite(v) || v <= 0)) {
-    return setVesselMessage('LBP/LPP, Breadth, Depth, dan Lightship Displacement harus berupa angka lebih besar dari 0.', true);
+    return setVesselMessage('LBP/LPP, Breadth, dan Depth harus berupa angka lebih besar dari 0.', true);
+  }
+  if (lightship_displacement !== null && (!Number.isFinite(lightship_displacement) || lightship_displacement <= 0)) {
+    return setVesselMessage('Lightship Displacement harus lebih besar dari 0 atau dikosongkan.', true);
   }
   if (default_water_density !== null && (!Number.isFinite(default_water_density) || default_water_density <= 0)) {
     return setVesselMessage('Default Water Density harus berupa angka lebih besar dari 0, atau dikosongkan.', true);
