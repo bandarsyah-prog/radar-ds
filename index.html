@@ -238,6 +238,9 @@ button {cursor:pointer}
 .btn.secondary {background:#e8eef4;color:var(--navy)}
 .btn.danger {background:#b42318;color:white}
 .table-actions {display:flex;gap:7px;flex-wrap:wrap}
+#hydroTableBody td {white-space:nowrap}
+#hydro table {min-width:1250px}
+
 .vessel-message-error {color:#b42318}
 
 table {
@@ -420,12 +423,54 @@ th {background:#f5f8fb}
   <section class="page" id="hydro">
     <div class="panel">
       <h3>Hydrostatic Table</h3>
-      <div class="notice">Masukkan data hydrostatic resmi sesuai kapal. Data contoh tidak boleh digunakan sebagai hasil survey aktual.</div>
-      <table>
-        <thead><tr><th>Draft</th><th>Displacement</th><th>TPC</th><th>MTC</th><th>LCF</th></tr></thead>
-        <tbody><tr><td colspan="5">Belum ada data hydrostatic.</td></tr></tbody>
-      </table>
-      <p><button class="btn" type="button">Add Hydrostatic Data</button></p>
+      <div class="notice">Pilih kapal, lalu masukkan data dari Hydrostatic Table resmi kapal tersebut. Jangan gunakan angka perkiraan. Nilai karakteristik disimpan pada data kapal.</div>
+      <div class="field">
+        <label for="hydroVesselSelect">Select Vessel / Barge</label>
+        <select id="hydroVesselSelect" onchange="onHydroVesselChange()">
+          <option value="">Loading vessels...</option>
+        </select>
+      </div>
+      <div class="grid">
+        <div class="field"><label for="hydroHeel">Heel (degrees)</label><input id="hydroHeel" type="number" step="0.01" placeholder="Contoh format: 0.00"></div>
+        <div class="field"><label for="hydroWaterDensity">Water Density (tonnes/cu.m)</label><input id="hydroWaterDensity" type="number" step="0.0001" min="0" placeholder="Contoh format: 1.0250"></div>
+        <div class="field"><label for="hydroShell">Shell Thickness (mm)</label><input id="hydroShell" type="number" step="0.01" min="0"></div>
+        <div class="field"><label for="hydroKeel">Keel Thickness (mm)</label><input id="hydroKeel" type="number" step="0.01" min="0"></div>
+      </div>
+      <button class="btn secondary" type="button" onclick="saveHydroCharacteristics()">Save Vessel Hydrostatic Properties</button>
+      <div id="hydroMessage" class="auth-message" role="status" aria-live="polite"></div>
+    </div>
+    <div class="panel">
+      <h3>Hydrostatic Data Rows</h3>
+      <p style="font-size:12px;color:#8291a3">Semua 11 kolom mengikuti dokumen: Draft, Displacement, LCB, VCB, WPA, LCF, KML, KMT, WSA, TPC, dan MTC. Gunakan satuan persis seperti dokumen kapal.</p>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>Draft (m)</th><th>Displacement (t)</th><th>LCB (m)</th><th>VCB (m)</th><th>WPA (m²)</th><th>LCF (m)</th><th>KML (m)</th><th>KMT (m)</th><th>WSA (m²)</th><th>TPC (t/cm)</th><th>MTC (t-m/cm)</th><th>Action</th>
+          </tr></thead>
+          <tbody id="hydroTableBody"><tr><td colspan="12">Pilih kapal untuk memuat data.</td></tr></tbody>
+        </table>
+      </div>
+      <h4 id="hydroEntryTitle">Add Hydrostatic Row</h4>
+      <input type="hidden" id="hydroRowId">
+      <div class="grid">
+        <div class="field"><label for="hydroDraft">Draft (m) *</label><input id="hydroDraft" type="number" step="0.001" min="0"></div>
+        <div class="field"><label for="hydroDisplacement">Displacement (t) *</label><input id="hydroDisplacement" type="number" step="0.001" min="0"></div>
+        <div class="field"><label for="hydroLCB">LCB (m)</label><input id="hydroLCB" type="number" step="0.001"></div>
+        <div class="field"><label for="hydroVCB">VCB (m)</label><input id="hydroVCB" type="number" step="0.001"></div>
+        <div class="field"><label for="hydroWPA">WPA (m²)</label><input id="hydroWPA" type="number" step="0.001"></div>
+        <div class="field"><label for="hydroLCF">LCF (m)</label><input id="hydroLCF" type="number" step="0.001"></div>
+        <div class="field"><label for="hydroKML">KML (m)</label><input id="hydroKML" type="number" step="0.001"></div>
+        <div class="field"><label for="hydroKMT">KMT (m)</label><input id="hydroKMT" type="number" step="0.001"></div>
+        <div class="field"><label for="hydroWSA">WSA (m²)</label><input id="hydroWSA" type="number" step="0.001"></div>
+        <div class="field"><label for="hydroTPC">TPC (t/cm)</label><input id="hydroTPC" type="number" step="0.001"></div>
+        <div class="field"><label for="hydroMTC">MTC (t-m/cm)</label><input id="hydroMTC" type="number" step="0.001"></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" id="saveHydroRowButton" type="button" onclick="saveHydroRow()">Save Hydrostatic Row</button>
+        <button class="btn secondary" id="cancelHydroEditButton" type="button" onclick="resetHydroRowForm()" style="display:none">Cancel Edit</button>
+        <button class="btn secondary" type="button" onclick="loadHydroRows()">Refresh Table</button>
+      </div>
+      <div class="notice" style="margin-top:18px">Penyimpanan baris dilakukan satu per satu. Mengedit atau menghapus baris hanya memengaruhi baris yang dipilih. Belum ada interpolasi atau hasil survey otomatis pada tahap ini.</div>
     </div>
   </section>
 
@@ -610,6 +655,7 @@ function showPage(id,button) {
   button.classList.add('active');
   document.getElementById('pageTitle').textContent=button.textContent.trim();
   if (id === 'vessel') loadVessels();
+  if (id === 'hydro') loadHydroVessels();
 }
 
 function renderSession(session) {
@@ -625,6 +671,215 @@ function renderSession(session) {
   }
 }
 
+
+
+let hydroRowsCache = [];
+
+function setHydroMessage(message, isError=false) {
+  const el = document.getElementById('hydroMessage');
+  if (!el) return;
+  el.textContent = message;
+  el.className = 'auth-message' + (isError ? ' vessel-message-error' : ' success');
+}
+
+function numericOrNull(id) {
+  const raw = document.getElementById(id).value.trim();
+  if (raw === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : NaN;
+}
+
+async function loadHydroVessels() {
+  const select = document.getElementById('hydroVesselSelect');
+  if (!select || !window.supabaseClient) return;
+  select.innerHTML = '<option value="">Loading vessels...</option>';
+  try {
+    const {data, error} = await window.supabaseClient
+      .from('vessels')
+      .select('id,barge_name,barge_id,heel_degrees,shell_thickness_mm,keel_thickness_mm,default_water_density')
+      .order('barge_name', {ascending:true});
+    if (error) throw error;
+    select.replaceChildren();
+    const first = document.createElement('option');
+    first.value = '';
+    first.textContent = data.length ? 'Select vessel...' : 'No vessel registered';
+    select.appendChild(first);
+    data.forEach(v => {
+      const option = document.createElement('option');
+      option.value = v.id;
+      option.textContent = `${v.barge_name} (${v.barge_id})`;
+      select.appendChild(option);
+    });
+  } catch (error) {
+    select.innerHTML = '<option value="">Failed to load vessels</option>';
+    setHydroMessage('Gagal memuat daftar kapal: ' + (error.message || ''), true);
+  }
+}
+
+async function onHydroVesselChange() {
+  const vesselId = document.getElementById('hydroVesselSelect').value;
+  resetHydroRowForm();
+  if (!vesselId) {
+    document.getElementById('hydroTableBody').innerHTML = '<tr><td colspan="12">Pilih kapal untuk memuat data.</td></tr>';
+    return;
+  }
+  try {
+    const {data, error} = await window.supabaseClient.from('vessels')
+      .select('id,heel_degrees,shell_thickness_mm,keel_thickness_mm,default_water_density')
+      .eq('id', vesselId).single();
+    if (error) throw error;
+    document.getElementById('hydroHeel').value = data.heel_degrees ?? '';
+    document.getElementById('hydroWaterDensity').value = data.default_water_density ?? '';
+    document.getElementById('hydroShell').value = data.shell_thickness_mm ?? '';
+    document.getElementById('hydroKeel').value = data.keel_thickness_mm ?? '';
+    await loadHydroRows();
+    setHydroMessage('');
+  } catch (error) {
+    setHydroMessage('Gagal memuat karakteristik kapal: ' + (error.message || ''), true);
+  }
+}
+
+async function saveHydroCharacteristics() {
+  const vesselId = document.getElementById('hydroVesselSelect').value;
+  if (!vesselId) return setHydroMessage('Pilih kapal terlebih dahulu.', true);
+  const heel_degrees = numericOrNull('hydroHeel');
+  const default_water_density = numericOrNull('hydroWaterDensity');
+  const shell_thickness_mm = numericOrNull('hydroShell');
+  const keel_thickness_mm = numericOrNull('hydroKeel');
+  const values = [heel_degrees, default_water_density, shell_thickness_mm, keel_thickness_mm];
+  if (values.some(v => Number.isNaN(v))) return setHydroMessage('Periksa angka karakteristik kapal.', true);
+  if (default_water_density !== null && default_water_density <= 0) return setHydroMessage('Water Density harus lebih besar dari 0.', true);
+  if ([shell_thickness_mm, keel_thickness_mm].some(v => v !== null && v < 0)) return setHydroMessage('Ketebalan tidak boleh negatif.', true);
+  try {
+    const {error} = await window.supabaseClient.from('vessels').update({
+      heel_degrees, default_water_density, shell_thickness_mm, keel_thickness_mm
+    }).eq('id', vesselId);
+    if (error) throw error;
+    setHydroMessage('Karakteristik hydrostatic kapal berhasil disimpan.');
+  } catch (error) {
+    setHydroMessage('Gagal menyimpan karakteristik: ' + (error.message || ''), true);
+  }
+}
+
+function resetHydroRowForm() {
+  document.getElementById('hydroRowId').value = '';
+  ['hydroDraft','hydroDisplacement','hydroLCB','hydroVCB','hydroWPA','hydroLCF','hydroKML','hydroKMT','hydroWSA','hydroTPC','hydroMTC']
+    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('hydroEntryTitle').textContent = 'Add Hydrostatic Row';
+  document.getElementById('saveHydroRowButton').textContent = 'Save Hydrostatic Row';
+  document.getElementById('cancelHydroEditButton').style.display = 'none';
+}
+
+async function saveHydroRow() {
+  const vessel_id = document.getElementById('hydroVesselSelect').value;
+  if (!vessel_id) return setHydroMessage('Pilih kapal terlebih dahulu.', true);
+  const draft = numericOrNull('hydroDraft');
+  const displacement = numericOrNull('hydroDisplacement');
+  if (draft === null || displacement === null || Number.isNaN(draft) || Number.isNaN(displacement) || draft <= 0 || displacement <= 0) {
+    return setHydroMessage('Draft dan Displacement wajib diisi dengan angka lebih besar dari 0.', true);
+  }
+  const fields = {
+    lcb: numericOrNull('hydroLCB'),
+    vcb: numericOrNull('hydroVCB'),
+    wpa: numericOrNull('hydroWPA'),
+    lcf: numericOrNull('hydroLCF'),
+    kml: numericOrNull('hydroKML'),
+    kmt: numericOrNull('hydroKMT'),
+    wsa: numericOrNull('hydroWSA'),
+    tpc: numericOrNull('hydroTPC'),
+    mtc: numericOrNull('hydroMTC')
+  };
+  if (Object.values(fields).some(v => Number.isNaN(v))) return setHydroMessage('Kolom hydrostatic yang diisi harus berupa angka.', true);
+  const payload = {vessel_id, draft, displacement, ...fields};
+  const rowId = document.getElementById('hydroRowId').value;
+  const button = document.getElementById('saveHydroRowButton');
+  button.disabled = true;
+  try {
+    let result;
+    if (rowId) {
+      result = await window.supabaseClient.from('hydrostatic_tables').update(payload).eq('id', rowId).select();
+    } else {
+      const duplicate = hydroRowsCache.some(row => Number(row.draft) === draft);
+      if (duplicate) throw new Error('Draft tersebut sudah ada untuk kapal ini. Gunakan Edit pada baris yang tersedia.');
+      result = await window.supabaseClient.from('hydrostatic_tables').insert(payload).select();
+    }
+    if (result.error) throw result.error;
+    setHydroMessage(rowId ? 'Baris hydrostatic berhasil diperbarui.' : 'Baris hydrostatic berhasil disimpan.');
+    resetHydroRowForm();
+    await loadHydroRows();
+  } catch (error) {
+    setHydroMessage('Gagal menyimpan baris: ' + (error.message || ''), true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function loadHydroRows() {
+  const vesselId = document.getElementById('hydroVesselSelect').value;
+  const body = document.getElementById('hydroTableBody');
+  if (!vesselId) {
+    body.innerHTML = '<tr><td colspan="12">Pilih kapal untuk memuat data.</td></tr>';
+    return;
+  }
+  body.innerHTML = '<tr><td colspan="12">Loading hydrostatic data...</td></tr>';
+  try {
+    const {data, error} = await window.supabaseClient.from('hydrostatic_tables')
+      .select('id,vessel_id,draft,displacement,lcb,vcb,wpa,lcf,kml,kmt,wsa,tpc,mtc')
+      .eq('vessel_id', vesselId).order('draft', {ascending:true});
+    if (error) throw error;
+    hydroRowsCache = data || [];
+    body.replaceChildren();
+    if (!hydroRowsCache.length) {
+      body.innerHTML = '<tr><td colspan="12">Belum ada data hydrostatic untuk kapal ini.</td></tr>';
+      return;
+    }
+    const keys = ['draft','displacement','lcb','vcb','wpa','lcf','kml','kmt','wsa','tpc','mtc'];
+    hydroRowsCache.forEach(rowData => {
+      const tr = document.createElement('tr');
+      keys.forEach(key => {
+        const td = document.createElement('td');
+        td.textContent = rowData[key] === null || rowData[key] === undefined ? '—' : String(rowData[key]);
+        tr.appendChild(td);
+      });
+      const actionTd = document.createElement('td');
+      const wrap = document.createElement('div');
+      wrap.className = 'table-actions';
+      const edit = document.createElement('button');
+      edit.type = 'button'; edit.className = 'btn secondary'; edit.textContent = 'Edit';
+      edit.addEventListener('click', () => editHydroRow(rowData));
+      const del = document.createElement('button');
+      del.type = 'button'; del.className = 'btn danger'; del.textContent = 'Delete';
+      del.addEventListener('click', () => deleteHydroRow(rowData.id, rowData.draft));
+      wrap.append(edit, del); actionTd.appendChild(wrap); tr.appendChild(actionTd);
+      body.appendChild(tr);
+    });
+  } catch (error) {
+    body.innerHTML = '<tr><td colspan="12">Gagal memuat data hydrostatic: ' + String(error.message || '') + '</td></tr>';
+    setHydroMessage('Gagal memuat tabel: ' + (error.message || ''), true);
+  }
+}
+
+function editHydroRow(row) {
+  document.getElementById('hydroRowId').value = row.id;
+  const map = {hydroDraft:'draft',hydroDisplacement:'displacement',hydroLCB:'lcb',hydroVCB:'vcb',hydroWPA:'wpa',hydroLCF:'lcf',hydroKML:'kml',hydroKMT:'kmt',hydroWSA:'wsa',hydroTPC:'tpc',hydroMTC:'mtc'};
+  Object.entries(map).forEach(([input,key]) => document.getElementById(input).value = row[key] ?? '');
+  document.getElementById('hydroEntryTitle').textContent = 'Edit Hydrostatic Row';
+  document.getElementById('saveHydroRowButton').textContent = 'Update Hydrostatic Row';
+  document.getElementById('cancelHydroEditButton').style.display = 'inline-block';
+  document.getElementById('hydroDraft').focus();
+}
+
+async function deleteHydroRow(id, draft) {
+  if (!confirm('Hapus baris hydrostatic Draft ' + draft + ' m?')) return;
+  try {
+    const {error} = await window.supabaseClient.from('hydrostatic_tables').delete().eq('id', id);
+    if (error) throw error;
+    setHydroMessage('Baris hydrostatic berhasil dihapus.');
+    await loadHydroRows();
+  } catch (error) {
+    setHydroMessage('Gagal menghapus baris: ' + (error.message || ''), true);
+  }
+}
 
 function setVesselMessage(message, isError=false) {
   const el = document.getElementById('vesselMessage');
