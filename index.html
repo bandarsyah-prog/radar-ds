@@ -518,14 +518,13 @@ async function registerUser() {
   }
 
   try {
-    const {data,error}=await window.supabaseClient.auth.signUp({
-      email,
-      password,
-      options:{
-        data:{full_name:name},
-        emailRedirectTo:location.origin
-      }
-    });
+   const { data, error } = await supabaseClient.auth.signUp({
+  email,
+  password,
+  options: {
+    emailRedirectTo: "https://radar-ds.vercel.app/"
+  }
+});
 
     if(error) throw error;
 
