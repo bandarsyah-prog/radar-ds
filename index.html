@@ -5,12 +5,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RADAR-DS | Draught Survey System</title>
+
 <style>
 :root {
   --navy:#10243a;
   --blue:#1d4163;
   --bg:#f3f6fa;
-  --white:#ffffff;
+  --white:#fff;
   --text:#243449;
   --muted:#8291a3;
   --border:#e4eaf0;
@@ -22,13 +23,93 @@ body {
   background:var(--bg);
   color:var(--text);
 }
+button,input {font-family:inherit}
+button {cursor:pointer}
+
+/* AUTH */
+#authScreen {
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  background:linear-gradient(135deg,#10243a,#28577d);
+}
+.auth-card {
+  background:white;
+  width:100%;
+  max-width:420px;
+  padding:35px;
+  border-radius:14px;
+  box-shadow:0 15px 50px #0003;
+}
+.auth-brand {
+  text-align:center;
+  font-size:29px;
+  font-weight:bold;
+  color:var(--navy);
+}
+.auth-subtitle {
+  text-align:center;
+  font-size:10px;
+  color:var(--muted);
+  letter-spacing:2px;
+  margin:8px 0 30px;
+}
+.auth-card h3 {color:var(--navy)}
+.auth-card label {
+  display:block;
+  font-size:12px;
+  font-weight:bold;
+  margin:15px 0 7px;
+}
+.auth-card input {
+  width:100%;
+  padding:13px;
+  border:1px solid var(--border);
+  border-radius:7px;
+}
+.auth-btn {
+  width:100%;
+  border:0;
+  border-radius:7px;
+  padding:13px;
+  background:var(--blue);
+  color:white;
+  margin-top:20px;
+}
+.auth-link {
+  width:100%;
+  background:none;
+  border:0;
+  color:var(--blue);
+  padding:13px;
+  font-size:12px;
+}
+.auth-message {
+  font-size:12px;
+  line-height:1.6;
+  margin-top:15px;
+  color:#a16207;
+  overflow-wrap:anywhere;
+}
+.auth-message.success {color:#16804c}
+.auth-hidden {display:none!important}
+
+/* APPLICATION */
+#appScreen {display:none}
 .sidebar {
   position:fixed;
-  top:0;bottom:0;left:0;
+  top:0;
+  bottom:0;
+  left:0;
   width:245px;
   background:var(--navy);
   color:white;
   padding:25px 15px;
+  overflow-y:auto;
 }
 .brand {
   font-size:23px;
@@ -58,7 +139,6 @@ body {
   padding:13px 12px;
   margin:4px 0;
   border-radius:7px;
-  cursor:pointer;
   font-size:13px;
 }
 .nav:hover,.nav.active {
@@ -73,15 +153,28 @@ body {
   display:flex;
   justify-content:space-between;
   align-items:center;
+  gap:15px;
   margin-bottom:30px;
 }
 .topbar h2 {margin:0;font-size:21px}
+.top-actions {
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
 .status {
   background:#e3f5eb;
   color:#16804c;
   padding:8px 12px;
   border-radius:20px;
   font-size:11px;
+}
+.logout {
+  border:0;
+  background:#fce8e8;
+  color:#b42318;
+  padding:9px 13px;
+  border-radius:7px;
 }
 .welcome {
   background:linear-gradient(120deg,#10243a,#28577d);
@@ -141,7 +234,6 @@ body {
   padding:11px 17px;
   border:0;
   border-radius:6px;
-  cursor:pointer;
 }
 .btn.secondary {background:#e8eef4;color:var(--navy)}
 table {
@@ -176,11 +268,64 @@ th {background:#f5f8fb}
   }
   .main {margin:0;padding:15px}
   .cards,.grid {grid-template-columns:1fr}
-  .topbar {gap:10px;flex-wrap:wrap}
+  .topbar {flex-wrap:wrap}
 }
 </style>
 </head>
+
 <body>
+
+<!-- AUTHENTICATION -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="auth-brand">RADAR-DS</div>
+    <div class="auth-subtitle">DRAUGHT SURVEY MANAGEMENT SYSTEM</div>
+
+    <div id="loginForm">
+      <h3>Welcome Back</h3>
+      <label>Email Address</label>
+      <input id="loginEmail" type="email" placeholder="Email" autocomplete="email">
+
+      <label>Password</label>
+      <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password">
+
+      <button class="auth-btn" id="loginButton" onclick="loginUser()">Login</button>
+      <button class="auth-link" onclick="showForgot()">Lupa password?</button>
+      <button class="auth-link" onclick="showRegister()">Belum punya akun? Buat Akun</button>
+    </div>
+
+    <div id="registerForm" class="auth-hidden">
+      <h3>Buat Akun Baru</h3>
+      <label>Nama Lengkap</label>
+      <input id="registerName" type="text" placeholder="Nama lengkap">
+
+      <label>Email Address</label>
+      <input id="registerEmail" type="email" placeholder="Email">
+
+      <label>Password</label>
+      <input id="registerPassword" type="password" placeholder="Minimal 8 karakter">
+
+      <label>Konfirmasi Password</label>
+      <input id="confirmPassword" type="password" placeholder="Ulangi password">
+
+      <button class="auth-btn" onclick="registerUser()">Daftar Sekarang</button>
+      <button class="auth-link" onclick="showLogin()">Sudah punya akun? Login</button>
+    </div>
+
+    <div id="forgotForm" class="auth-hidden">
+      <h3>Reset Password</h3>
+      <label>Email Address</label>
+      <input id="forgotEmail" type="email" placeholder="Email terdaftar">
+      <button class="auth-btn" onclick="resetPassword()">Kirim Link Reset</button>
+      <button class="auth-link" onclick="showLogin()">Kembali ke Login</button>
+    </div>
+
+    <div id="authMessage" class="auth-message"></div>
+  </div>
+</div>
+
+<!-- MAIN APPLICATION -->
+<div id="appScreen">
 
 <aside class="sidebar">
   <div class="brand">
@@ -207,23 +352,28 @@ th {background:#f5f8fb}
 <main class="main">
   <div class="topbar">
     <h2 id="pageTitle">Dashboard</h2>
-    <span class="status">● RADAR-DS V2</span>
+    <div class="top-actions">
+      <span class="status">● RADAR-DS V2</span>
+      <button class="logout" onclick="logoutUser()">Logout</button>
+    </div>
   </div>
 
   <section class="page active" id="dashboard">
     <div class="welcome">
       <h1>Welcome to RADAR-DS</h1>
       <p>Draught Survey Management & Calculation System</p>
-      <p>Professional maritime survey management platform.</p>
+      <p id="welcomeUser">Professional maritime survey management platform.</p>
     </div>
+
     <div class="cards">
       <div class="card"><span>Total Survey</span><h2>0</h2><span>Survey records</span></div>
       <div class="card"><span>Total Vessel</span><h2>0</h2><span>Registered vessels</span></div>
       <div class="card"><span>Loading</span><h2>0</h2><span>Loading operations</span></div>
       <div class="card"><span>Discharging</span><h2>0</h2><span>Discharging operations</span></div>
     </div>
+
     <div class="panel">
-      <h3>Welcome to your Survey Workspace</h3>
+      <h3>Survey Workspace</h3>
       <p style="font-size:13px;color:#8291a3">
         Mulai dengan mendaftarkan kapal, memasukkan Hydrostatic Table,
         kemudian membuat transaksi Draught Survey.
@@ -278,32 +428,161 @@ th {background:#f5f8fb}
   <section class="page" id="final">
     <div class="panel">
       <h3>Final Draught Survey</h3>
-      <p>Formulir pengisian Final Survey akan dikembangkan pada tahap berikutnya.</p>
+      <p>Modul Final Survey akan dikembangkan.</p>
     </div>
   </section>
 
   <section class="page" id="loading">
-    <div class="panel"><h3>Loading Survey</h3><p>Modul perhitungan cargo loaded akan dikembangkan.</p></div>
+    <div class="panel">
+      <h3>Loading Survey</h3>
+      <p>Modul Cargo Loaded akan dikembangkan.</p>
+    </div>
   </section>
 
   <section class="page" id="discharging">
-    <div class="panel"><h3>Discharging Survey</h3><p>Modul perhitungan cargo discharged akan dikembangkan.</p></div>
+    <div class="panel">
+      <h3>Discharging Survey</h3>
+      <p>Modul Cargo Discharged akan dikembangkan.</p>
+    </div>
   </section>
 
   <section class="page" id="history">
-    <div class="panel"><h3>Survey History</h3><p>Belum ada transaksi survey.</p></div>
+    <div class="panel">
+      <h3>Survey History</h3>
+      <p>Belum ada transaksi survey.</p>
+    </div>
   </section>
 
   <section class="page" id="reports">
-    <div class="panel"><h3>Survey Reports</h3><p>Laporan PDF akan dikembangkan pada tahap berikutnya.</p></div>
+    <div class="panel">
+      <h3>Survey Reports</h3>
+      <p>Laporan PDF akan dikembangkan.</p>
+    </div>
   </section>
+
 </main>
+</div>
+
+<!-- SUPABASE LIBRARY -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase.js"></script>
 
 <script>
-function showPage(id,button) {
-<script>
+const authScreen = document.getElementById('authScreen');
+const appScreen = document.getElementById('appScreen');
+
+function setMessage(message,success=false) {
+  const el=document.getElementById('authMessage');
+  el.textContent=message;
+  el.className='auth-message'+(success?' success':'');
+}
+
+function hideAuthForms() {
+  ['loginForm','registerForm','forgotForm'].forEach(id=>{
+    document.getElementById(id).classList.add('auth-hidden');
+  });
+}
+
+function showLogin() {
+  hideAuthForms();
+  document.getElementById('loginForm').classList.remove('auth-hidden');
+  setMessage('');
+}
+
+function showRegister() {
+  hideAuthForms();
+  document.getElementById('registerForm').classList.remove('auth-hidden');
+  setMessage('');
+}
+
+function showForgot() {
+  hideAuthForms();
+  document.getElementById('forgotForm').classList.remove('auth-hidden');
+  setMessage('');
+}
+
+async function registerUser() {
+  const name=document.getElementById('registerName').value.trim();
+  const email=document.getElementById('registerEmail').value.trim();
+  const password=document.getElementById('registerPassword').value;
+  const confirm=document.getElementById('confirmPassword').value;
+
+  if(!name || !email || !password) {
+    return setMessage('Lengkapi semua data.');
+  }
+  if(password.length<8) {
+    return setMessage('Password minimal 8 karakter.');
+  }
+  if(password!==confirm) {
+    return setMessage('Konfirmasi password tidak cocok.');
+  }
+
+  try {
+    const {data,error}=await window.supabaseClient.auth.signUp({
+      email,
+      password,
+      options:{
+        data:{full_name:name},
+        emailRedirectTo:location.origin
+      }
+    });
+
+    if(error) throw error;
+
+    if(data.session) {
+      setMessage('Pendaftaran berhasil. Mengarahkan ke dashboard...',true);
+    } else {
+      showLogin();
+      setMessage('Pendaftaran berhasil. Silakan periksa email untuk verifikasi akun.',true);
+    }
+  } catch(error) {
+    setMessage(error.message);
+  }
+}
+
+async function loginUser() {
+  const email=document.getElementById('loginEmail').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  const button=document.getElementById('loginButton');
+
+  if(!email || !password) return setMessage('Isi email dan password.');
+
+  button.disabled=true;
+  button.textContent='Memproses...';
+
+  try {
+    const {error}=await window.supabaseClient.auth.signInWithPassword({
+      email,password
+    });
+    if(error) throw error;
+  } catch(error) {
+    setMessage(error.message);
+  } finally {
+    button.disabled=false;
+    button.textContent='Login';
+  }
+}
+
+async function resetPassword() {
+  const email=document.getElementById('forgotEmail').value.trim();
+  if(!email) return setMessage('Masukkan email terlebih dahulu.');
+
+  try {
+    const {error}=await window.supabaseClient.auth.resetPasswordForEmail(email,{
+      redirectTo:location.origin
+    });
+    if(error) throw error;
+    setMessage('Link reset password telah dikirim jika email terdaftar.',true);
+  } catch(error) {
+    setMessage(error.message);
+  }
+}
+
+async function logoutUser() {
+  const {error}=await window.supabaseClient.auth.signOut();
+  if(error) alert(error.message);
+}
+
 function showPage(id,button) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav').forEach(b=>b.classList.remove('active'));
@@ -311,6 +590,44 @@ function showPage(id,button) {
   button.classList.add('active');
   document.getElementById('pageTitle').textContent=button.textContent.trim();
 }
+
+function renderSession(session) {
+  if(session) {
+    authScreen.style.display='none';
+    appScreen.style.display='block';
+    const name=session.user.user_metadata?.full_name || session.user.email;
+    document.getElementById('welcomeUser').textContent='Signed in as '+name;
+  } else {
+    appScreen.style.display='none';
+    authScreen.style.display='flex';
+    showLogin();
+  }
+}
+
+async function initializeAuth() {
+  if(!window.supabaseClient) {
+    authScreen.style.display='flex';
+    setMessage('Koneksi Supabase belum tersedia. Periksa supabase.js.');
+    return;
+  }
+
+  const {data,error}=await window.supabaseClient.auth.getSession();
+
+  if(error) {
+    renderSession(null);
+    setMessage(error.message);
+    return;
+  }
+
+  renderSession(data.session);
+
+  window.supabaseClient.auth.onAuthStateChange((event,session)=>{
+    renderSession(session);
+  });
+}
+
+initializeAuth();
 </script>
+
 </body>
 </html>
