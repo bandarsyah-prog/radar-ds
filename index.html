@@ -236,6 +236,10 @@ button {cursor:pointer}
   border-radius:6px;
 }
 .btn.secondary {background:#e8eef4;color:var(--navy)}
+.btn.danger {background:#b42318;color:white}
+.table-actions {display:flex;gap:7px;flex-wrap:wrap}
+.vessel-message-error {color:#b42318}
+
 table {
   width:100%;
   border-collapse:collapse;
@@ -384,15 +388,32 @@ th {background:#f5f8fb}
   <section class="page" id="vessel">
     <div class="panel">
       <h3>Vessel / Barge Master</h3>
+      <p style="font-size:13px;color:#8291a3">Data kapal disimpan ke database RADAR-DS.</p>
+      <input type="hidden" id="vesselRecordId">
       <div class="grid">
-        <div class="field"><label>Barge Name</label><input placeholder="Enter barge name"></div>
-        <div class="field"><label>Barge ID</label><input placeholder="Enter barge ID"></div>
-        <div class="field"><label>LBP / LPP (m)</label><input type="number"></div>
-        <div class="field"><label>Breadth (m)</label><input type="number"></div>
-        <div class="field"><label>Depth (m)</label><input type="number"></div>
-        <div class="field"><label>Lightship Displacement (MT)</label><input type="number"></div>
+        <div class="field"><label for="vesselName">Barge Name *</label><input id="vesselName" placeholder="Enter barge name" maxlength="150" required></div>
+        <div class="field"><label for="vesselCode">Barge ID *</label><input id="vesselCode" placeholder="Enter unique barge ID" maxlength="100" required></div>
+        <div class="field"><label for="vesselLbp">LBP / LPP (m) *</label><input id="vesselLbp" type="number" min="0" step="0.001" required></div>
+        <div class="field"><label for="vesselBreadth">Breadth (m) *</label><input id="vesselBreadth" type="number" min="0" step="0.001" required></div>
+        <div class="field"><label for="vesselDepth">Depth (m) *</label><input id="vesselDepth" type="number" min="0" step="0.001" required></div>
+        <div class="field"><label for="vesselLightship">Lightship Displacement (MT) *</label><input id="vesselLightship" type="number" min="0" step="0.001" required></div>
+        <div class="field"><label for="vesselDensity">Default Water Density (t/m³)</label><input id="vesselDensity" type="number" min="0" step="0.001" placeholder="Isi sesuai data kapal bila tersedia"></div>
       </div>
-      <button class="btn" type="button">Save Vessel</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" id="saveVesselButton" type="button" onclick="saveVessel()">Save Vessel</button>
+        <button class="btn secondary" id="cancelVesselEditButton" type="button" onclick="resetVesselForm()" style="display:none">Cancel Edit</button>
+        <button class="btn secondary" type="button" onclick="loadVessels()">Refresh List</button>
+      </div>
+      <div id="vesselMessage" class="auth-message" role="status" aria-live="polite"></div>
+    </div>
+    <div class="panel">
+      <h3>Registered Vessels / Barges</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Barge Name</th><th>Barge ID</th><th>LBP/LPP (m)</th><th>Breadth (m)</th><th>Depth (m)</th><th>Lightship (MT)</th><th>Default Density</th><th>Actions</th></tr></thead>
+          <tbody id="vesselTableBody"><tr><td colspan="8">Loading vessel data...</td></tr></tbody>
+        </table>
+      </div>
     </div>
   </section>
 
@@ -588,6 +609,7 @@ function showPage(id,button) {
   document.getElementById(id).classList.add('active');
   button.classList.add('active');
   document.getElementById('pageTitle').textContent=button.textContent.trim();
+  if (id === 'vessel') loadVessels();
 }
 
 function renderSession(session) {
@@ -600,6 +622,165 @@ function renderSession(session) {
     appScreen.style.display='none';
     authScreen.style.display='flex';
     showLogin();
+  }
+}
+
+
+function setVesselMessage(message, isError=false) {
+  const el = document.getElementById('vesselMessage');
+  if (!el) return;
+  el.textContent = message;
+  el.className = 'auth-message' + (isError ? ' vessel-message-error' : ' success');
+}
+
+function vesselNumber(id) {
+  const raw = document.getElementById(id).value.trim();
+  if (raw === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : NaN;
+}
+
+function resetVesselForm() {
+  document.getElementById('vesselRecordId').value = '';
+  ['vesselName','vesselCode','vesselLbp','vesselBreadth','vesselDepth','vesselLightship','vesselDensity']
+    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('saveVesselButton').textContent = 'Save Vessel';
+  document.getElementById('cancelVesselEditButton').style.display = 'none';
+  setVesselMessage('');
+}
+
+async function saveVessel() {
+  const client = window.supabaseClient;
+  if (!client) return setVesselMessage('Koneksi Supabase belum tersedia.', true);
+
+  const barge_name = document.getElementById('vesselName').value.trim();
+  const barge_id = document.getElementById('vesselCode').value.trim();
+  const lbp_lpp = vesselNumber('vesselLbp');
+  const breadth = vesselNumber('vesselBreadth');
+  const depth = vesselNumber('vesselDepth');
+  const lightship_displacement = vesselNumber('vesselLightship');
+  const densityRaw = document.getElementById('vesselDensity').value.trim();
+  const default_water_density = densityRaw === '' ? null : Number(densityRaw);
+  const recordId = document.getElementById('vesselRecordId').value;
+
+  if (!barge_name || !barge_id) return setVesselMessage('Barge Name dan Barge ID wajib diisi.', true);
+  const requiredNumbers = [lbp_lpp, breadth, depth, lightship_displacement];
+  if (requiredNumbers.some(v => v === null || !Number.isFinite(v) || v <= 0)) {
+    return setVesselMessage('LBP/LPP, Breadth, Depth, dan Lightship Displacement harus berupa angka lebih besar dari 0.', true);
+  }
+  if (default_water_density !== null && (!Number.isFinite(default_water_density) || default_water_density <= 0)) {
+    return setVesselMessage('Default Water Density harus berupa angka lebih besar dari 0, atau dikosongkan.', true);
+  }
+
+  const payload = { barge_name, barge_id, lbp_lpp, breadth, depth, lightship_displacement, default_water_density };
+  const button = document.getElementById('saveVesselButton');
+  button.disabled = true;
+  button.textContent = 'Saving...';
+  try {
+    let result;
+    if (recordId) {
+      result = await client.from('vessels').update(payload).eq('id', recordId).select();
+    } else {
+      result = await client.from('vessels').insert(payload).select();
+    }
+    if (result.error) throw result.error;
+    setVesselMessage(recordId ? 'Data kapal berhasil diperbarui.' : 'Data kapal berhasil disimpan.');
+    resetVesselForm();
+    await loadVessels();
+  } catch (error) {
+    console.error('Save vessel error:', error);
+    setVesselMessage('Gagal menyimpan data: ' + (error.message || 'Kesalahan tidak diketahui'), true);
+  } finally {
+    button.disabled = false;
+    button.textContent = document.getElementById('vesselRecordId').value ? 'Update Vessel' : 'Save Vessel';
+  }
+}
+
+function addVesselCell(row, value) {
+  const cell = document.createElement('td');
+  cell.textContent = value === null || value === undefined || value === '' ? '—' : String(value);
+  row.appendChild(cell);
+}
+
+async function loadVessels() {
+  const body = document.getElementById('vesselTableBody');
+  if (!body) return;
+  const client = window.supabaseClient;
+  if (!client) {
+    body.innerHTML = '<tr><td colspan="8">Supabase client belum tersedia.</td></tr>';
+    return;
+  }
+  body.innerHTML = '<tr><td colspan="8">Loading vessel data...</td></tr>';
+  try {
+    const { data, error } = await client.from('vessels')
+      .select('id,barge_name,barge_id,lbp_lpp,breadth,depth,lightship_displacement,default_water_density')
+      .order('barge_name', { ascending: true });
+    if (error) throw error;
+    body.replaceChildren();
+    if (!data || data.length === 0) {
+      body.innerHTML = '<tr><td colspan="8">Belum ada data kapal.</td></tr>';
+      return;
+    }
+    data.forEach(vessel => {
+      const row = document.createElement('tr');
+      addVesselCell(row, vessel.barge_name);
+      addVesselCell(row, vessel.barge_id);
+      addVesselCell(row, vessel.lbp_lpp);
+      addVesselCell(row, vessel.breadth);
+      addVesselCell(row, vessel.depth);
+      addVesselCell(row, vessel.lightship_displacement);
+      addVesselCell(row, vessel.default_water_density);
+      const actionCell = document.createElement('td');
+      const actions = document.createElement('div');
+      actions.className = 'table-actions';
+      const edit = document.createElement('button');
+      edit.className = 'btn secondary';
+      edit.type = 'button';
+      edit.textContent = 'Edit';
+      edit.addEventListener('click', () => editVessel(vessel));
+      const remove = document.createElement('button');
+      remove.className = 'btn danger';
+      remove.type = 'button';
+      remove.textContent = 'Delete';
+      remove.addEventListener('click', () => deleteVessel(vessel.id, vessel.barge_name));
+      actions.append(edit, remove);
+      actionCell.appendChild(actions);
+      row.appendChild(actionCell);
+      body.appendChild(row);
+    });
+  } catch (error) {
+    console.error('Load vessels error:', error);
+    body.innerHTML = '<tr><td colspan="8">Gagal memuat data: ' +
+      String(error.message || 'Kesalahan tidak diketahui').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])) +
+      '</td></tr>';
+  }
+}
+
+function editVessel(vessel) {
+  document.getElementById('vesselRecordId').value = vessel.id;
+  document.getElementById('vesselName').value = vessel.barge_name || '';
+  document.getElementById('vesselCode').value = vessel.barge_id || '';
+  document.getElementById('vesselLbp').value = vessel.lbp_lpp ?? '';
+  document.getElementById('vesselBreadth').value = vessel.breadth ?? '';
+  document.getElementById('vesselDepth').value = vessel.depth ?? '';
+  document.getElementById('vesselLightship').value = vessel.lightship_displacement ?? '';
+  document.getElementById('vesselDensity').value = vessel.default_water_density ?? '';
+  document.getElementById('saveVesselButton').textContent = 'Update Vessel';
+  document.getElementById('cancelVesselEditButton').style.display = 'inline-block';
+  setVesselMessage('Mode edit: ubah data lalu klik Update Vessel.');
+  document.getElementById('vesselName').focus();
+}
+
+async function deleteVessel(id, name) {
+  if (!confirm('Hapus data kapal "' + name + '"? Tindakan ini tidak dapat dibatalkan.')) return;
+  try {
+    const { error } = await window.supabaseClient.from('vessels').delete().eq('id', id);
+    if (error) throw error;
+    setVesselMessage('Data kapal berhasil dihapus.');
+    await loadVessels();
+  } catch (error) {
+    console.error('Delete vessel error:', error);
+    setVesselMessage('Gagal menghapus data: ' + (error.message || 'Kesalahan tidak diketahui'), true);
   }
 }
 
