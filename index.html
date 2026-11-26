@@ -1,0 +1,312 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RADAR-DS | Draught Survey System</title>
+<style>
+:root {
+  --navy:#10243a;
+  --blue:#1d4163;
+  --bg:#f3f6fa;
+  --white:#ffffff;
+  --text:#243449;
+  --muted:#8291a3;
+  --border:#e4eaf0;
+}
+* {box-sizing:border-box}
+body {
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+.sidebar {
+  position:fixed;
+  top:0;bottom:0;left:0;
+  width:245px;
+  background:var(--navy);
+  color:white;
+  padding:25px 15px;
+}
+.brand {
+  font-size:23px;
+  font-weight:bold;
+  padding:8px 12px;
+}
+.brand small {
+  display:block;
+  font-size:10px;
+  color:#a8bdce;
+  margin-top:7px;
+  letter-spacing:2px;
+}
+.menu-title {
+  color:#91a6b9;
+  font-size:10px;
+  margin:30px 12px 12px;
+  letter-spacing:1.5px;
+}
+.nav {
+  display:block;
+  width:100%;
+  border:0;
+  background:none;
+  color:#d0dbe6;
+  text-align:left;
+  padding:13px 12px;
+  margin:4px 0;
+  border-radius:7px;
+  cursor:pointer;
+  font-size:13px;
+}
+.nav:hover,.nav.active {
+  background:#244665;
+  color:white;
+}
+.main {
+  margin-left:245px;
+  padding:30px;
+}
+.topbar {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:30px;
+}
+.topbar h2 {margin:0;font-size:21px}
+.status {
+  background:#e3f5eb;
+  color:#16804c;
+  padding:8px 12px;
+  border-radius:20px;
+  font-size:11px;
+}
+.welcome {
+  background:linear-gradient(120deg,#10243a,#28577d);
+  color:white;
+  border-radius:12px;
+  padding:28px;
+  margin-bottom:25px;
+}
+.welcome h1 {margin:0 0 10px;font-size:25px}
+.welcome p {color:#d4e1ec;font-size:13px}
+.cards {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:15px;
+}
+.card {
+  background:white;
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:20px;
+}
+.card span {font-size:12px;color:var(--muted)}
+.card h2 {margin:13px 0 5px;font-size:25px}
+.panel {
+  background:white;
+  padding:23px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  margin-top:22px;
+}
+.panel h3 {margin-top:0}
+.page {display:none}
+.page.active {display:block}
+.grid {
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:15px;
+}
+.field {margin-bottom:15px}
+.field label {
+  display:block;
+  font-size:12px;
+  margin-bottom:7px;
+  font-weight:bold;
+}
+.field input,.field select,.field textarea {
+  width:100%;
+  padding:11px;
+  border:1px solid var(--border);
+  border-radius:6px;
+  font-size:13px;
+  background:white;
+}
+.btn {
+  background:var(--blue);
+  color:white;
+  padding:11px 17px;
+  border:0;
+  border-radius:6px;
+  cursor:pointer;
+}
+.btn.secondary {background:#e8eef4;color:var(--navy)}
+table {
+  width:100%;
+  border-collapse:collapse;
+  font-size:12px;
+}
+th,td {
+  text-align:left;
+  padding:13px;
+  border-bottom:1px solid var(--border);
+}
+th {background:#f5f8fb}
+.notice {
+  padding:14px;
+  background:#fff7e5;
+  color:#825b12;
+  border-radius:7px;
+  font-size:12px;
+  margin-bottom:18px;
+}
+@media(max-width:900px) {
+  .sidebar {width:190px}
+  .main {margin-left:190px;padding:18px}
+  .cards {grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:600px) {
+  .sidebar {
+    position:relative;
+    width:100%;
+    height:auto;
+  }
+  .main {margin:0;padding:15px}
+  .cards,.grid {grid-template-columns:1fr}
+  .topbar {gap:10px;flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="brand">
+    RADAR-DS
+    <small>DRAUGHT SURVEY SYSTEM</small>
+  </div>
+
+  <div class="menu-title">MAIN MENU</div>
+  <button class="nav active" onclick="showPage('dashboard',this)">▦ Dashboard</button>
+  <button class="nav" onclick="showPage('vessel',this)">▤ Vessel / Barge</button>
+  <button class="nav" onclick="showPage('hydro',this)">▤ Hydrostatic Table</button>
+
+  <div class="menu-title">SURVEY OPERATIONS</div>
+  <button class="nav" onclick="showPage('initial',this)">＋ Initial Survey</button>
+  <button class="nav" onclick="showPage('final',this)">＋ Final Survey</button>
+  <button class="nav" onclick="showPage('loading',this)">↗ Loading Survey</button>
+  <button class="nav" onclick="showPage('discharging',this)">↙ Discharging Survey</button>
+
+  <div class="menu-title">REPORTS</div>
+  <button class="nav" onclick="showPage('history',this)">▤ Survey History</button>
+  <button class="nav" onclick="showPage('reports',this)">▧ Survey Reports</button>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <h2 id="pageTitle">Dashboard</h2>
+    <span class="status">● RADAR-DS V2</span>
+  </div>
+
+  <section class="page active" id="dashboard">
+    <div class="welcome">
+      <h1>Welcome to RADAR-DS</h1>
+      <p>Draught Survey Management & Calculation System</p>
+      <p>Professional maritime survey management platform.</p>
+    </div>
+    <div class="cards">
+      <div class="card"><span>Total Survey</span><h2>0</h2><span>Survey records</span></div>
+      <div class="card"><span>Total Vessel</span><h2>0</h2><span>Registered vessels</span></div>
+      <div class="card"><span>Loading</span><h2>0</h2><span>Loading operations</span></div>
+      <div class="card"><span>Discharging</span><h2>0</h2><span>Discharging operations</span></div>
+    </div>
+    <div class="panel">
+      <h3>Welcome to your Survey Workspace</h3>
+      <p style="font-size:13px;color:#8291a3">
+        Mulai dengan mendaftarkan kapal, memasukkan Hydrostatic Table,
+        kemudian membuat transaksi Draught Survey.
+      </p>
+    </div>
+  </section>
+
+  <section class="page" id="vessel">
+    <div class="panel">
+      <h3>Vessel / Barge Master</h3>
+      <div class="grid">
+        <div class="field"><label>Barge Name</label><input placeholder="Enter barge name"></div>
+        <div class="field"><label>Barge ID</label><input placeholder="Enter barge ID"></div>
+        <div class="field"><label>LBP / LPP (m)</label><input type="number"></div>
+        <div class="field"><label>Breadth (m)</label><input type="number"></div>
+        <div class="field"><label>Depth (m)</label><input type="number"></div>
+        <div class="field"><label>Lightship Displacement (MT)</label><input type="number"></div>
+      </div>
+      <button class="btn" type="button">Save Vessel</button>
+    </div>
+  </section>
+
+  <section class="page" id="hydro">
+    <div class="panel">
+      <h3>Hydrostatic Table</h3>
+      <div class="notice">Masukkan data hydrostatic resmi sesuai kapal. Data contoh tidak boleh digunakan sebagai hasil survey aktual.</div>
+      <table>
+        <thead><tr><th>Draft</th><th>Displacement</th><th>TPC</th><th>MTC</th><th>LCF</th></tr></thead>
+        <tbody><tr><td colspan="5">Belum ada data hydrostatic.</td></tr></tbody>
+      </table>
+      <p><button class="btn" type="button">Add Hydrostatic Data</button></p>
+    </div>
+  </section>
+
+  <section class="page" id="initial">
+    <div class="panel">
+      <h3>Initial Draught Survey</h3>
+      <div class="grid">
+        <div class="field"><label>Date and Hour</label><input type="datetime-local"></div>
+        <div class="field"><label>Observed Water Density</label><input type="number" step="0.001"></div>
+        <div class="field"><label>Forward Port</label><input type="number" step="0.01"></div>
+        <div class="field"><label>Forward Starboard</label><input type="number" step="0.01"></div>
+        <div class="field"><label>Midship Port</label><input type="number" step="0.01"></div>
+        <div class="field"><label>Midship Starboard</label><input type="number" step="0.01"></div>
+        <div class="field"><label>After Port</label><input type="number" step="0.01"></div>
+        <div class="field"><label>After Starboard</label><input type="number" step="0.01"></div>
+      </div>
+      <button class="btn" type="button">Save Initial Survey</button>
+    </div>
+  </section>
+
+  <section class="page" id="final">
+    <div class="panel">
+      <h3>Final Draught Survey</h3>
+      <p>Formulir pengisian Final Survey akan dikembangkan pada tahap berikutnya.</p>
+    </div>
+  </section>
+
+  <section class="page" id="loading">
+    <div class="panel"><h3>Loading Survey</h3><p>Modul perhitungan cargo loaded akan dikembangkan.</p></div>
+  </section>
+
+  <section class="page" id="discharging">
+    <div class="panel"><h3>Discharging Survey</h3><p>Modul perhitungan cargo discharged akan dikembangkan.</p></div>
+  </section>
+
+  <section class="page" id="history">
+    <div class="panel"><h3>Survey History</h3><p>Belum ada transaksi survey.</p></div>
+  </section>
+
+  <section class="page" id="reports">
+    <div class="panel"><h3>Survey Reports</h3><p>Laporan PDF akan dikembangkan pada tahap berikutnya.</p></div>
+  </section>
+</main>
+
+<script>
+function showPage(id,button) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav').forEach(b=>b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  button.classList.add('active');
+  document.getElementById('pageTitle').textContent=button.textContent.trim();
+}
+</script>
+</body>
+</html>
