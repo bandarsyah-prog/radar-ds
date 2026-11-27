@@ -477,7 +477,7 @@ th {background:#f5f8fb}
   <section class="page" id="initial">
     <div class="panel">
       <h3>Initial Draught Survey</h3>
-      <div class="notice">Isi berdasarkan pembacaan aktual di lapangan. Semua draft menggunakan meter dan ditampilkan dengan dua angka desimal. Data akan disimpan sebagai fase <b>initial</b>.</div>
+      <div class="notice">Isi berdasarkan pembacaan aktual di lapangan. Draft Forward (FWD) dan After (AFT) wajib diisi. Draft Midship bersifat opsional dan boleh dikosongkan. Semua draft menggunakan meter dan dua angka desimal. Data disimpan sebagai fase <b>initial</b>.</div>
       <div class="grid">
         <div class="field"><label for="initialSurveyNumber">Survey Number *</label><input id="initialSurveyNumber" maxlength="100" placeholder="Contoh: DS-2026-001"></div>
         <div class="field"><label for="initialVesselSelect">Vessel / Barge *</label><select id="initialVesselSelect"><option value="">Loading vessels...</option></select></div>
@@ -485,12 +485,12 @@ th {background:#f5f8fb}
         <div class="field"><label for="initialReadingDate">Date and Time *</label><input id="initialReadingDate" type="datetime-local"></div>
         <div class="field"><label for="initialDensity">Observed Water Density (t/m³) *</label><input id="initialDensity" type="number" min="0.1" max="2" step="0.0001" placeholder="Contoh: 1.0250"></div>
       </div>
-      <h4>Six Draft Readings</h4>
+      <h4>Draft Readings (FWD, MIDSHIP, AFT)</h4>
       <div class="grid">
         <div class="field"><label for="initialForwardPort">Forward Port (m) *</label><input id="initialForwardPort" type="number" min="0" step="0.01" placeholder="0.00"></div>
         <div class="field"><label for="initialForwardStarboard">Forward Starboard (m) *</label><input id="initialForwardStarboard" type="number" min="0" step="0.01" placeholder="0.00"></div>
-        <div class="field"><label for="initialMidshipPort">Midship Port (m) *</label><input id="initialMidshipPort" type="number" min="0" step="0.01" placeholder="0.00"></div>
-        <div class="field"><label for="initialMidshipStarboard">Midship Starboard (m) *</label><input id="initialMidshipStarboard" type="number" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="field"><label for="initialMidshipPort">Midship Port (m) — Optional</label><input id="initialMidshipPort" type="number" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="field"><label for="initialMidshipStarboard">Midship Starboard (m) — Optional</label><input id="initialMidshipStarboard" type="number" min="0" step="0.01" placeholder="0.00"></div>
         <div class="field"><label for="initialAfterPort">After Port (m) *</label><input id="initialAfterPort" type="number" min="0" step="0.01" placeholder="0.00"></div>
         <div class="field"><label for="initialAfterStarboard">After Starboard (m) *</label><input id="initialAfterStarboard" type="number" min="0" step="0.01" placeholder="0.00"></div>
       </div>
@@ -1119,7 +1119,7 @@ async function saveInitialSurvey() {
     'initialMidshipStarboard','initialAfterPort','initialAfterStarboard'];
   const readingValues = readingIds.map(id => {
     const raw = document.getElementById(id).value.trim();
-    return raw === '' ? NaN : Number(raw);
+    return raw === '' ? null : Number(raw);
   });
   const notes = document.getElementById('initialNotes').value.trim() || null;
 
@@ -1129,8 +1129,13 @@ async function saveInitialSurvey() {
   if (!Number.isFinite(observed_density) || observed_density <= 0) {
     return setInitialMessage('Observed Water Density harus diisi dengan angka lebih besar dari 0.', true);
   }
-  if (readingValues.some(value => !Number.isFinite(value) || value < 0)) {
-    return setInitialMessage('Enam draft reading wajib diisi dengan angka 0 atau lebih.', true);
+  // FWD and AFT readings are mandatory; MIDSHIP readings are optional.
+  const requiredDraftIndexes = [0, 1, 4, 5];
+  if (requiredDraftIndexes.some(index => readingValues[index] === null || !Number.isFinite(readingValues[index]) || readingValues[index] < 0)) {
+    return setInitialMessage('Draft Forward Port/Starboard dan After Port/Starboard wajib diisi dengan angka 0 atau lebih.', true);
+  }
+  if ([2, 3].some(index => readingValues[index] !== null && (!Number.isFinite(readingValues[index]) || readingValues[index] < 0))) {
+    return setInitialMessage('Draft Midship harus berupa angka 0 atau lebih, atau dikosongkan jika tidak tersedia.', true);
   }
 
   const button = document.getElementById('saveInitialButton');
