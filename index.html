@@ -562,8 +562,17 @@ th {background:#f5f8fb}
   </section>
 
   <section class="page" id="reports"><div class="panel"><h3>Provisional Draught Survey PDF Report</h3>
-    <div class="notice">PDF merangkum data survei tersimpan, trim aktual otomatis (mean AFT dikurangi mean FWD), dan perhitungan dasar dari interpolasi hydrostatic displacement. Trim correction tidak diterapkan. Koreksi lain dan deductible weights harus diverifikasi sesuai lembar kerja resmi.</div>
+    <div class="notice">Calculation Engine v2: mean FWD/AFT dan actual trim dihitung otomatis. Displacement diinterpolasi dari Hydrostatic Table dan dikoreksi terhadap density referensi 1.025 t/m³. Tidak ada Trim Correction. Deductibles dicatat terpisah; belum dikurangkan dari cargo result sampai metode dan arah rekonsiliasi disetujui berdasarkan worksheet kapal.</div>
     <div class="field"><label>Select Survey</label><select id="reportSurveySelect"><option value="">Memuat survei...</option></select></div>
+    <h4>Deductibles / ROB (MT) — opsional, dicatat untuk rekonsiliasi</h4>
+    <div class="grid">
+      <div class="field"><label>Ballast Water (MT)</label><input id="dedBallast" type="number" min="0" step="0.01" value="0"></div>
+      <div class="field"><label>Fresh Water (MT)</label><input id="dedFresh" type="number" min="0" step="0.01" value="0"></div>
+      <div class="field"><label>Fuel Oil (MT)</label><input id="dedFuel" type="number" min="0" step="0.01" value="0"></div>
+      <div class="field"><label>Diesel Oil (MT)</label><input id="dedDiesel" type="number" min="0" step="0.01" value="0"></div>
+      <div class="field"><label>Lubricating Oil (MT)</label><input id="dedLube" type="number" min="0" step="0.01" value="0"></div>
+      <div class="field"><label>Others (MT)</label><input id="dedOthers" type="number" min="0" step="0.01" value="0"></div>
+    </div>
     <button class="btn" type="button" onclick="generateSurveyPDF()">Generate PDF Report</button><div id="reportMessage" class="auth-message" role="status"></div>
     </div></section>
 
@@ -1311,13 +1320,71 @@ async function listSurveysForSelects(){const c=window.supabaseClient;if(!c)retur
 async function saveFinalSurvey(){const c=window.supabaseClient;const survey_id=document.getElementById('finalSurveySelect').value;const date=document.getElementById('finalReadingDate').value;const density=radarVal('finalDensity');const ids=['finalForwardPort','finalForwardStarboard','finalMidshipPort','finalMidshipStarboard','finalAfterPort','finalAfterStarboard'];const a=ids.map(radarVal);if(!survey_id||!date||!density||density<=0||[0,1,4,5].some(i=>a[i]===null||!Number.isFinite(a[i])||a[i]<0)){radarMsg('finalMessage','Pilih survey, isi tanggal, density, serta empat draft FWD/AFT wajib.',true);return;}if([2,3].some(i=>a[i]!==null&&(!Number.isFinite(a[i])||a[i]<0))){radarMsg('finalMessage','Draft Midship harus berupa angka valid atau kosong.',true);return;}const b=document.getElementById('saveFinalButton');b.disabled=true;try{const payload={survey_id,survey_phase:'final',reading_date:new Date(date).toISOString(),forward_port:a[0],forward_starboard:a[1],midship_port:a[2],midship_starboard:a[3],after_port:a[4],after_starboard:a[5],observed_density:density,notes:document.getElementById('finalNotes').value.trim()||null};const {error}=await c.from('survey_draft_readings').upsert(payload,{onConflict:'survey_id,survey_phase'});if(error)throw error;radarMsg('finalMessage','Final Survey berhasil disimpan.');await listSurveysForSelects();}catch(e){radarMsg('finalMessage','Gagal menyimpan Final Survey: '+e.message,true)}finally{b.disabled=false}}
 async function saveOperationDetails(){const c=window.supabaseClient,id=document.getElementById('loadingSurveySelect').value;if(!id){radarMsg('operationMessage','Pilih survey terlebih dahulu.',true);return;}const val=id=>document.getElementById(id).value.trim()||null;const qty=radarVal('opQuantity');const payload={quantity:qty,shipper:val('opShipper'),consignee:val('opConsignee'),notify_party:val('opNotify'),port_of_loading:val('opPOL'),port_of_discharge:val('opPOD'),commodity:val('opCommodity'),disc_commenced:val('opCommenced')?new Date(val('opCommenced')).toISOString():null,disc_completed:val('opCompleted')?new Date(val('opCompleted')).toISOString():null,initial_sea_condition:val('opInitialSea'),final_sea_condition:val('opFinalSea'),other:val('opOther')};try{const {error}=await c.from('survey_operations').update(payload).eq('id',id);if(error)throw error;radarMsg('operationMessage','Detail operasi berhasil disimpan.')}catch(e){radarMsg('operationMessage','Gagal menyimpan detail operasi: '+e.message,true)}}
 function interpolateHydro(rows,draft){const r=(rows||[]).filter(x=>x.draft!==null&&x.displacement!==null).sort((a,b)=>Number(a.draft)-Number(b.draft));if(!r.length)throw new Error('Hydrostatic Table kapal belum tersedia.');if(draft<Number(r[0].draft)||draft>Number(r[r.length-1].draft))throw new Error('Mean draft berada di luar rentang Hydrostatic Table.');for(let i=0;i<r.length;i++){if(Math.abs(Number(r[i].draft)-draft)<1e-8)return Number(r[i].displacement);if(i<r.length-1&&draft>Number(r[i].draft)&&draft<Number(r[i+1].draft)){const x1=Number(r[i].draft),x2=Number(r[i+1].draft),y1=Number(r[i].displacement),y2=Number(r[i+1].displacement);return y1+(draft-x1)*(y2-y1)/(x2-x1)}}throw new Error('Interpolasi hydrostatic tidak dapat dilakukan.')}
-async function generateSurveyPDF(){const c=window.supabaseClient,id=document.getElementById('reportSurveySelect').value;if(!id){radarMsg('reportMessage','Pilih survey terlebih dahulu.',true);return;}try{if(!window.jspdf?.jsPDF)throw new Error('Library PDF belum termuat. Periksa koneksi internet.');const [sq, rq, vq]=await Promise.all([c.from('survey_operations').select('*').eq('id',id).single(),c.from('survey_draft_readings').select('*').eq('survey_id',id),]);if(sq.error)throw sq.error;if(rq.error)throw rq.error;const survey=sq.data, readings=rq.data||[];const vres=await c.from('vessels').select('*').eq('id',survey.vessel_id).single();if(vres.error)throw vres.error;const vessel=vres.data;const hres=await c.from('hydrostatic_tables').select('*').eq('vessel_id',survey.vessel_id).order('draft');if(hres.error)throw hres.error;const ini=readings.find(x=>x.survey_phase==='initial'),fin=readings.find(x=>x.survey_phase==='final');if(!ini||!fin)throw new Error('PDF memerlukan Initial Survey dan Final Survey untuk survey yang sama.');
- const mean=r=>{const values=[r.forward_port,r.forward_starboard,r.midship_port,r.midship_starboard,r.after_port,r.after_starboard].filter(x=>x!==null&&x!==undefined&&x!== '').map(Number);if(!values.length)throw new Error('Draft reading tidak tersedia.');return values.reduce((a,b)=>a+b,0)/values.length};
- const trim=r=>{const f=(Number(r.forward_port)+Number(r.forward_starboard))/2;const a=(Number(r.after_port)+Number(r.after_starboard))/2;const delta=a-f;return {forward:f,after:a,value:delta,direction:Math.abs(delta)<0.0005?'EVEN KEEL':delta>0?'TRIM BY STERN':'TRIM BY HEAD'}};
- const mi=mean(ini),mf=mean(fin),ti=trim(ini),tf=trim(fin),di=interpolateHydro(hres.data,mi),df=interpolateHydro(hres.data,mf);const densityCorrect=(disp,obs)=>disp*1.025/Number(obs);const ci=densityCorrect(di,ini.observed_density),cf=densityCorrect(df,fin.observed_density);const cargo=ci-cf;
- const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});let y=15;const line=(t,size=9,bold=false)=>{doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(size);const lines=doc.splitTextToSize(String(t??'-'),180);doc.text(lines,15,y);y+=lines.length*4.5+1};doc.setFontSize(15);doc.setFont('helvetica','bold');doc.text('PROVISIONAL REPORT OF DRAUGHT SURVEY',105,y,{align:'center'});y+=8;line('VESSEL / BARGE',10,true);line(`Barge: ${vessel.barge_name||'-'} / ${vessel.barge_id||'-'}`);line(`Survey Number: ${survey.survey_number||'-'} | Operation: ${survey.operation_type||'-'}`);line(`Quantity / Manifest: ${survey.quantity??'-'} MT`);line(`Shipper: ${survey.shipper||'-'} | Consignee: ${survey.consignee||'-'}`);line(`Notify Party: ${survey.notify_party||'-'}`);line(`Port of Loading: ${survey.port_of_loading||'-'}`);line(`Port of Discharge: ${survey.port_of_discharge||'-'}`);line(`Commodity: ${survey.commodity||'-'}`);y+=3;line('DRAFT FINDINGS',11,true);
- const fmt=n=>Number(n).toFixed(3);const labels=[['Forward Port','forward_port'],['Forward Starboard','forward_starboard'],['Midship Port','midship_port'],['Midship Starboard','midship_starboard'],['After Port','after_port'],['After Starboard','after_starboard']];for(const [phase,r] of [['INITIAL',ini],['FINAL',fin]]){line(`${phase} — ${new Date(r.reading_date).toLocaleString('id-ID')} | Density ${Number(r.observed_density).toFixed(4)} t/m³`,10,true);labels.forEach(([l,k])=>line(`${l}: ${r[k]==null?'N/A':fmt(r[k])+' m'}`));line(`Mean Draft (average of available readings): ${fmt(phase==='INITIAL'?mi:mf)} m`);const tr=phase==='INITIAL'?ti:tf;line(`Mean FWD: ${fmt(tr.forward)} m | Mean AFT: ${fmt(tr.after)} m`);line(`Actual Trim (AFT - FWD): ${Math.abs(tr.value).toFixed(3)} m — ${tr.direction}`);line(`Hydrostatic Displacement (interpolated): ${(phase==='INITIAL'?di:df).toFixed(2)} MT`);line(`Density-corrected displacement (reference 1.025): ${(phase==='INITIAL'?ci:cf).toFixed(2)} MT`);y+=2;if(y>255){doc.addPage();y=15}}
- line('PRELIMINARY RESULT',11,true);line(`Cargo quantity by displacement difference (Initial corrected - Final corrected): ${cargo.toFixed(2)} MT`,10,true);line('IMPORTANT: Actual trim is calculated automatically as mean AFT minus mean FWD and is reported as trim by stern, trim by head, or even keel. No trim correction is applied to displacement. Mean draft and hydrostatic displacement use the available draft readings and linear interpolation. List correction, deformation correction, hog/sag, deductibles (ballast, fresh water, fuel, diesel, lube oil, others), and final net cargo reconciliation are not calculated in this provisional PDF. Verify against the vessel-approved survey worksheet before issuing a signed/final report.',8);line(`Generated: ${new Date().toLocaleString('id-ID')}`);doc.save(`RADAR-DS-${(survey.survey_number||'Survey').replace(/[^a-z0-9_-]/gi,'_')}-PROVISIONAL.pdf`);radarMsg('reportMessage','PDF provisional berhasil dibuat. Periksa semua angka dan koreksi secara manual sebelum digunakan sebagai laporan resmi.');}catch(e){console.error(e);radarMsg('reportMessage','Gagal membuat PDF: '+e.message,true)}}
+async function generateSurveyPDF(){
+ const c=window.supabaseClient,id=document.getElementById('reportSurveySelect').value;
+ if(!id){radarMsg('reportMessage','Pilih survey terlebih dahulu.',true);return;}
+ try{
+  if(!window.jspdf?.jsPDF)throw new Error('Library PDF belum termuat. Periksa koneksi internet.');
+  const [sq,rq]=await Promise.all([
+   c.from('survey_operations').select('*').eq('id',id).single(),
+   c.from('survey_draft_readings').select('*').eq('survey_id',id)
+  ]);
+  if(sq.error)throw sq.error;if(rq.error)throw rq.error;
+  const survey=sq.data,readings=rq.data||[];
+  const vres=await c.from('vessels').select('*').eq('id',survey.vessel_id).single();if(vres.error)throw vres.error;
+  const vessel=vres.data;
+  const hres=await c.from('hydrostatic_tables').select('*').eq('vessel_id',survey.vessel_id).order('draft');if(hres.error)throw hres.error;
+  const ini=readings.find(x=>x.survey_phase==='initial'),fin=readings.find(x=>x.survey_phase==='final');
+  if(!ini||!fin)throw new Error('PDF memerlukan Initial Survey dan Final Survey untuk survey yang sama.');
+  const required=['forward_port','forward_starboard','after_port','after_starboard'];
+  for(const [phase,r] of [['Initial',ini],['Final',fin]]){
+   if(required.some(k=>r[k]===null||r[k]===undefined||!Number.isFinite(Number(r[k]))))throw new Error(phase+' Survey belum memiliki empat pembacaan FWD/AFT wajib.');
+   if(!r.observed_density||Number(r.observed_density)<=0)throw new Error('Water density '+phase+' tidak valid.');
+  }
+  const meanAvailable=r=>{const vals=['forward_port','forward_starboard','midship_port','midship_starboard','after_port','after_starboard'].map(k=>r[k]).filter(v=>v!==null&&v!==undefined&&v!=='').map(Number);if(!vals.length||vals.some(v=>!Number.isFinite(v)))throw new Error('Ada draft reading yang tidak valid.');return vals.reduce((a,b)=>a+b,0)/vals.length;};
+  const trim=r=>{const f=(Number(r.forward_port)+Number(r.forward_starboard))/2,a=(Number(r.after_port)+Number(r.after_starboard))/2,d=a-f;return {forward:f,after:a,value:d,direction:Math.abs(d)<0.0005?'EVEN KEEL':d>0?'TRIM BY STERN':'TRIM BY HEAD'};};
+  const interpolate=(rows,draft)=>{const a=(rows||[]).filter(x=>x.draft!==null&&x.displacement!==null).sort((x,y)=>Number(x.draft)-Number(y.draft));if(a.length<2)throw new Error('Minimal dua titik Draft/Displacement diperlukan pada Hydrostatic Table.');if(draft<Number(a[0].draft)||draft>Number(a[a.length-1].draft))throw new Error('Mean draft '+draft.toFixed(3)+' m berada di luar rentang Hydrostatic Table ('+a[0].draft+'–'+a[a.length-1].draft+' m).');for(let i=0;i<a.length;i++){const x=Number(a[i].draft);if(Math.abs(x-draft)<1e-8)return Number(a[i].displacement);if(i<a.length-1){const x2=Number(a[i+1].draft);if(draft>x&&draft<x2){const y=Number(a[i].displacement),y2=Number(a[i+1].displacement);return y+(draft-x)*(y2-y)/(x2-x);}}}throw new Error('Interpolasi displacement gagal.');};
+  const mi=meanAvailable(ini),mf=meanAvailable(fin),ti=trim(ini),tf=trim(fin);
+  const di=interpolate(hres.data,mi),df=interpolate(hres.data,mf);
+  const densityCorrect=(disp,density)=>disp*1.025/Number(density);
+  const ci=densityCorrect(di,ini.observed_density),cf=densityCorrect(df,fin.observed_density);
+  const operationKey=String(survey.operation_type||'').trim().toLowerCase();
+  const isDischarge=operationKey.includes('discharg');
+  const isLoading=operationKey.includes('load');
+  if(!isDischarge&&!isLoading)throw new Error('Operation Type harus Loading atau Discharging agar arah perhitungan cargo quantity tidak keliru.');
+  // Cargo quantity is always reported as a positive displacement difference when inputs follow the operation direction.
+  // Loading: Final corrected displacement - Initial corrected displacement.
+  // Discharging: Initial corrected displacement - Final corrected displacement.
+  const gross=isDischarge?(ci-cf):(cf-ci);
+  const identical=required.every(k=>Math.abs(Number(ini[k])-Number(fin[k]))<0.000001)&&Math.abs(Number(ini.observed_density)-Number(fin.observed_density))<0.000001;
+  const dedFields=[['Ballast Water','dedBallast'],['Fresh Water','dedFresh'],['Fuel Oil','dedFuel'],['Diesel Oil','dedDiesel'],['Lubricating Oil','dedLube'],['Others','dedOthers']];
+  const deductions=dedFields.map(([label,eid])=>({label,value:Number(document.getElementById(eid).value||0)}));
+  if(deductions.some(x=>!Number.isFinite(x.value)||x.value<0))throw new Error('Nilai deductibles harus angka nol atau lebih.');
+  const totalDed=deductions.reduce((a,x)=>a+x.value,0);
+  const {jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'});let y=15;
+  const line=(t,size=9,bold=false)=>{doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(size);const ls=doc.splitTextToSize(String(t??'-'),180);if(y+ls.length*4.5>280){doc.addPage();y=15;}doc.text(ls,15,y);y+=ls.length*4.5+1;};
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.text('PROVISIONAL REPORT OF DRAUGHT SURVEY',105,y,{align:'center'});y+=8;
+  line('VESSEL / BARGE',11,true);line(`Barge: ${vessel.barge_name||'-'} / ${vessel.barge_id||'-'}`);line(`Survey Number: ${survey.survey_number||'-'} | Operation: ${survey.operation_type||'-'}`);line(`Cargo Manifest: ${survey.quantity??'-'} MT`);line(`Shipper: ${survey.shipper||'-'} | Consignee: ${survey.consignee||'-'}`);line(`Notify Party: ${survey.notify_party||'-'}`);line(`Port of Loading: ${survey.port_of_loading||'-'} | Port of Discharge: ${survey.port_of_discharge||'-'}`);line(`Commodity: ${survey.commodity||'-'}`);y+=3;
+  const fmt=n=>Number(n).toFixed(3),labels=[['Forward Port','forward_port'],['Forward Starboard','forward_starboard'],['Midship Port','midship_port'],['Midship Starboard','midship_starboard'],['After Port','after_port'],['After Starboard','after_starboard']];
+  line('DRAFT FINDINGS & AUTOMATIC TRIM',11,true);
+  for(const [phase,r,m,t,d,corr] of [['INITIAL',ini,mi,ti,di,ci],['FINAL',fin,mf,tf,df,cf]]){
+   line(`${phase} — ${new Date(r.reading_date).toLocaleString('id-ID')} | Density ${Number(r.observed_density).toFixed(4)} t/m³`,10,true);
+   labels.forEach(([label,key])=>line(`${label}: ${r[key]==null?'N/A':fmt(r[key])+' m'}`));
+   line(`Mean Draft (average of available readings): ${fmt(m)} m`);line(`Mean FWD: ${fmt(t.forward)} m | Mean AFT: ${fmt(t.after)} m`);line(`Actual Trim: ${Math.abs(t.value).toFixed(3)} m — ${t.direction}`);line(`Hydrostatic Displacement (linear interpolation): ${d.toFixed(2)} MT`);line(`Density-corrected Displacement (reference 1.025): ${corr.toFixed(2)} MT`);line(`Surveyor Notes: ${r.notes||'-'}`);y+=2;
+  }
+  line('CALCULATION SUMMARY',11,true);line(`Cargo quantity by displacement (${isDischarge?'Initial - Final':'Final - Initial'} corrected, ${isDischarge?'Discharging':'Loading'}): ${gross.toFixed(2)} MT`,10,true);
+  line(`Cargo Manifest: ${survey.quantity==null?'-':Number(survey.quantity).toFixed(2)+' MT'}`);
+  if(survey.quantity!==null&&survey.quantity!==undefined)line(`Difference vs Manifest (gross displacement change - manifest): ${(gross-Number(survey.quantity)).toFixed(2)} MT`);
+  if(identical)line('VALIDATION WARNING: Initial and Final required draft readings and density are identical. Confirm that Final Survey readings are genuine and not copied from Initial Survey.',9,true);
+  line('DEDUCTIBLES / ROB — entered values (MT)',10,true);deductions.forEach(x=>line(`${x.label}: ${x.value.toFixed(2)} MT`));line(`Total entered deductibles: ${totalDed.toFixed(2)} MT`);
+  line('Deductibles are itemized for review only and are NOT subtracted from the gross displacement change. Net cargo reconciliation requires the vessel-approved worksheet, verified ROB change and agreed sign convention.',8,true);
+  line('METHOD & LIMITATIONS',10,true);line('Mean Draft for hydrostatic lookup is the arithmetic average of all available valid draft readings (FWD, optional Midship, AFT). Actual Trim = mean AFT - mean FWD. Positive = trim by stern; negative = trim by head. No Trim Correction is applied. Displacement is linearly interpolated between adjacent Hydrostatic Table entries and density-corrected to 1.025 t/m³.');
+  line('This is a PROVISIONAL calculation. List correction, hog/sag, deformation, other vessel-specific corrections and final deductible reconciliation are not applied. Verify the calculation method and all inputs against the vessel-approved survey procedure before issuing a signed report.',8,true);
+  line(`Generated: ${new Date().toLocaleString('id-ID')}`);
+  doc.save(`RADAR-DS-${(survey.survey_number||'Survey').replace(/[^a-z0-9_-]/gi,'_')}-PROVISIONAL.pdf`);
+  radarMsg('reportMessage',identical?'PDF dibuat dengan peringatan: Initial dan Final reading identik. Periksa data Final Survey.':'PDF provisional berhasil dibuat. Periksa warning dan rekonsiliasi sebelum laporan resmi.');
+ }catch(e){console.error(e);radarMsg('reportMessage','Gagal membuat PDF: '+e.message,true);}
+}
 
 async function initializeAuth() {
   if(!window.supabaseClient) {
