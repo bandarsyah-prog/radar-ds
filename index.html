@@ -441,29 +441,23 @@ th {background:#f5f8fb}
     </div>
     <div class="panel">
       <h3>Hydrostatic Data Rows</h3>
-      <p style="font-size:12px;color:#8291a3">Semua 11 kolom mengikuti dokumen: Draft, Displacement, LCB, VCB, WPA, LCF, KML, KMT, WSA, TPC, dan MTC. Gunakan satuan persis seperti dokumen kapal.</p>
+      <p style="font-size:12px;color:#8291a3">Isi hanya Draft, Displacement, LCF, dan MTC sebagai data wajib. Volume Displacement opsional. Kolom hydrostatic lainnya dihilangkan agar input lebih sederhana.</p>
       <div style="overflow-x:auto">
         <table>
           <thead><tr>
-            <th>Draft (m)</th><th>Displacement (t)</th><th>LCB (m)</th><th>VCB (m)</th><th>WPA (m²)</th><th>LCF (m)</th><th>KML (m)</th><th>KMT (m)</th><th>WSA (m²)</th><th>TPC (t/cm)</th><th>MTC (t-m/cm)</th><th>Action</th>
+            <th>Draft (m) *</th><th>Displacement (t) *</th><th>LCF (m) *</th><th>MTC (t-m/cm) *</th><th>Volume Displacement (m³)</th><th>Action</th>
           </tr></thead>
-          <tbody id="hydroTableBody"><tr><td colspan="12">Pilih kapal untuk memuat data.</td></tr></tbody>
+          <tbody id="hydroTableBody"><tr><td colspan="6">Pilih kapal untuk memuat data.</td></tr></tbody>
         </table>
       </div>
       <h4 id="hydroEntryTitle">Add Hydrostatic Row</h4>
       <input type="hidden" id="hydroRowId">
       <div class="grid">
-        <div class="field"><label for="hydroDraft">Draft (m) *</label><input id="hydroDraft" type="number" step="0.001" min="0"></div>
-        <div class="field"><label for="hydroDisplacement">Displacement (t) *</label><input id="hydroDisplacement" type="number" step="0.001" min="0"></div>
-        <div class="field"><label for="hydroLCB">LCB (m)</label><input id="hydroLCB" type="number" step="0.001"></div>
-        <div class="field"><label for="hydroVCB">VCB (m)</label><input id="hydroVCB" type="number" step="0.001"></div>
-        <div class="field"><label for="hydroWPA">WPA (m²)</label><input id="hydroWPA" type="number" step="0.001"></div>
-        <div class="field"><label for="hydroLCF">LCF (m)</label><input id="hydroLCF" type="number" step="0.001"></div>
-        <div class="field"><label for="hydroKML">KML (m)</label><input id="hydroKML" type="number" step="0.001"></div>
-        <div class="field"><label for="hydroKMT">KMT (m)</label><input id="hydroKMT" type="number" step="0.001"></div>
-        <div class="field"><label for="hydroWSA">WSA (m²)</label><input id="hydroWSA" type="number" step="0.001"></div>
-        <div class="field"><label for="hydroTPC">TPC (t/cm)</label><input id="hydroTPC" type="number" step="0.001"></div>
-        <div class="field"><label for="hydroMTC">MTC (t-m/cm)</label><input id="hydroMTC" type="number" step="0.001"></div>
+        <div class="field"><label for="hydroDraft">Draft (m) *</label><input id="hydroDraft" type="number" step="0.001" min="0" required></div>
+        <div class="field"><label for="hydroDisplacement">Displacement (t) *</label><input id="hydroDisplacement" type="number" step="0.001" min="0" required></div>
+        <div class="field"><label for="hydroLCF">LCF (m) *</label><input id="hydroLCF" type="number" step="0.001" required></div>
+        <div class="field"><label for="hydroMTC">MTC (t-m/cm) *</label><input id="hydroMTC" type="number" step="0.001" required></div>
+        <div class="field"><label for="hydroVolumeDisplacement">Volume Displacement (m³) — Optional</label><input id="hydroVolumeDisplacement" type="number" step="0.001" min="0"></div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn" id="saveHydroRowButton" type="button" onclick="saveHydroRow()">Save Hydrostatic Row</button>
@@ -820,7 +814,7 @@ async function saveHydroCharacteristics() {
 
 function resetHydroRowForm() {
   document.getElementById('hydroRowId').value = '';
-  ['hydroDraft','hydroDisplacement','hydroLCB','hydroVCB','hydroWPA','hydroLCF','hydroKML','hydroKMT','hydroWSA','hydroTPC','hydroMTC']
+  ['hydroDraft','hydroDisplacement','hydroLCF','hydroMTC','hydroVolumeDisplacement']
     .forEach(id => document.getElementById(id).value = '');
   document.getElementById('hydroEntryTitle').textContent = 'Add Hydrostatic Row';
   document.getElementById('saveHydroRowButton').textContent = 'Save Hydrostatic Row';
@@ -835,19 +829,16 @@ async function saveHydroRow() {
   if (draft === null || displacement === null || Number.isNaN(draft) || Number.isNaN(displacement) || draft <= 0 || displacement <= 0) {
     return setHydroMessage('Draft dan Displacement wajib diisi dengan angka lebih besar dari 0.', true);
   }
-  const fields = {
-    lcb: numericOrNull('hydroLCB'),
-    vcb: numericOrNull('hydroVCB'),
-    wpa: numericOrNull('hydroWPA'),
-    lcf: numericOrNull('hydroLCF'),
-    kml: numericOrNull('hydroKML'),
-    kmt: numericOrNull('hydroKMT'),
-    wsa: numericOrNull('hydroWSA'),
-    tpc: numericOrNull('hydroTPC'),
-    mtc: numericOrNull('hydroMTC')
-  };
-  if (Object.values(fields).some(v => Number.isNaN(v))) return setHydroMessage('Kolom hydrostatic yang diisi harus berupa angka.', true);
-  const payload = {vessel_id, draft, displacement, ...fields};
+  const lcf = numericOrNull('hydroLCF');
+  const mtc = numericOrNull('hydroMTC');
+  const volume_displacement = numericOrNull('hydroVolumeDisplacement');
+  if (lcf === null || mtc === null || [lcf, mtc, volume_displacement].some(v => Number.isNaN(v))) {
+    return setHydroMessage('Draft, Displacement, LCF, dan MTC wajib diisi dengan angka. Volume Displacement opsional.', true);
+  }
+  if (volume_displacement !== null && volume_displacement < 0) {
+    return setHydroMessage('Volume Displacement tidak boleh negatif.', true);
+  }
+  const payload = {vessel_id, draft, displacement, lcf, mtc, volume_displacement};
   const rowId = document.getElementById('hydroRowId').value;
   const button = document.getElementById('saveHydroRowButton');
   button.disabled = true;
@@ -875,22 +866,22 @@ async function loadHydroRows() {
   const vesselId = document.getElementById('hydroVesselSelect').value;
   const body = document.getElementById('hydroTableBody');
   if (!vesselId) {
-    body.innerHTML = '<tr><td colspan="12">Pilih kapal untuk memuat data.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6">Pilih kapal untuk memuat data.</td></tr>';
     return;
   }
-  body.innerHTML = '<tr><td colspan="12">Loading hydrostatic data...</td></tr>';
+  body.innerHTML = '<tr><td colspan="6">Loading hydrostatic data...</td></tr>';
   try {
     const {data, error} = await window.supabaseClient.from('hydrostatic_tables')
-      .select('id,vessel_id,draft,displacement,lcb,vcb,wpa,lcf,kml,kmt,wsa,tpc,mtc')
+      .select('id,vessel_id,draft,displacement,lcf,mtc,volume_displacement')
       .eq('vessel_id', vesselId).order('draft', {ascending:true});
     if (error) throw error;
     hydroRowsCache = data || [];
     body.replaceChildren();
     if (!hydroRowsCache.length) {
-      body.innerHTML = '<tr><td colspan="12">Belum ada data hydrostatic untuk kapal ini.</td></tr>';
+      body.innerHTML = '<tr><td colspan="6">Belum ada data hydrostatic untuk kapal ini.</td></tr>';
       return;
     }
-    const keys = ['draft','displacement','lcb','vcb','wpa','lcf','kml','kmt','wsa','tpc','mtc'];
+    const keys = ['draft','displacement','lcf','mtc','volume_displacement'];
     hydroRowsCache.forEach(rowData => {
       const tr = document.createElement('tr');
       keys.forEach(key => {
@@ -911,14 +902,14 @@ async function loadHydroRows() {
       body.appendChild(tr);
     });
   } catch (error) {
-    body.innerHTML = '<tr><td colspan="12">Gagal memuat data hydrostatic: ' + String(error.message || '') + '</td></tr>';
+    body.innerHTML = '<tr><td colspan="6">Gagal memuat data hydrostatic: ' + String(error.message || '') + '</td></tr>';
     setHydroMessage('Gagal memuat tabel: ' + (error.message || ''), true);
   }
 }
 
 function editHydroRow(row) {
   document.getElementById('hydroRowId').value = row.id;
-  const map = {hydroDraft:'draft',hydroDisplacement:'displacement',hydroLCB:'lcb',hydroVCB:'vcb',hydroWPA:'wpa',hydroLCF:'lcf',hydroKML:'kml',hydroKMT:'kmt',hydroWSA:'wsa',hydroTPC:'tpc',hydroMTC:'mtc'};
+  const map = {hydroDraft:'draft',hydroDisplacement:'displacement',hydroLCF:'lcf',hydroMTC:'mtc',hydroVolumeDisplacement:'volume_displacement'};
   Object.entries(map).forEach(([input,key]) => document.getElementById(input).value = row[key] ?? '');
   document.getElementById('hydroEntryTitle').textContent = 'Edit Hydrostatic Row';
   document.getElementById('saveHydroRowButton').textContent = 'Update Hydrostatic Row';
