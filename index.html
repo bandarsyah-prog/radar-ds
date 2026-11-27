@@ -477,17 +477,26 @@ th {background:#f5f8fb}
   <section class="page" id="initial">
     <div class="panel">
       <h3>Initial Draught Survey</h3>
+      <div class="notice">Isi berdasarkan pembacaan aktual di lapangan. Semua draft menggunakan meter dan ditampilkan dengan dua angka desimal. Data akan disimpan sebagai fase <b>initial</b>.</div>
       <div class="grid">
-        <div class="field"><label>Date and Hour</label><input type="datetime-local"></div>
-        <div class="field"><label>Observed Water Density</label><input type="number" step="0.001"></div>
-        <div class="field"><label>Forward Port</label><input type="number" step="0.01"></div>
-        <div class="field"><label>Forward Starboard</label><input type="number" step="0.01"></div>
-        <div class="field"><label>Midship Port</label><input type="number" step="0.01"></div>
-        <div class="field"><label>Midship Starboard</label><input type="number" step="0.01"></div>
-        <div class="field"><label>After Port</label><input type="number" step="0.01"></div>
-        <div class="field"><label>After Starboard</label><input type="number" step="0.01"></div>
+        <div class="field"><label for="initialSurveyNumber">Survey Number *</label><input id="initialSurveyNumber" maxlength="100" placeholder="Contoh: DS-2026-001"></div>
+        <div class="field"><label for="initialVesselSelect">Vessel / Barge *</label><select id="initialVesselSelect"><option value="">Loading vessels...</option></select></div>
+        <div class="field"><label for="initialOperationType">Operation Type *</label><select id="initialOperationType"><option value="loading">Loading</option><option value="discharging">Discharging</option></select></div>
+        <div class="field"><label for="initialReadingDate">Date and Time *</label><input id="initialReadingDate" type="datetime-local"></div>
+        <div class="field"><label for="initialDensity">Observed Water Density (t/m³) *</label><input id="initialDensity" type="number" min="0.1" max="2" step="0.0001" placeholder="Contoh: 1.0250"></div>
       </div>
-      <button class="btn" type="button">Save Initial Survey</button>
+      <h4>Six Draft Readings</h4>
+      <div class="grid">
+        <div class="field"><label for="initialForwardPort">Forward Port (m) *</label><input id="initialForwardPort" type="number" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="field"><label for="initialForwardStarboard">Forward Starboard (m) *</label><input id="initialForwardStarboard" type="number" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="field"><label for="initialMidshipPort">Midship Port (m) *</label><input id="initialMidshipPort" type="number" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="field"><label for="initialMidshipStarboard">Midship Starboard (m) *</label><input id="initialMidshipStarboard" type="number" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="field"><label for="initialAfterPort">After Port (m) *</label><input id="initialAfterPort" type="number" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="field"><label for="initialAfterStarboard">After Starboard (m) *</label><input id="initialAfterStarboard" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      </div>
+      <div class="field"><label for="initialNotes">Surveyor Notes</label><textarea id="initialNotes" rows="3" placeholder="Catatan kondisi pembacaan draft (opsional)" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:7px;font-family:inherit"></textarea></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="saveInitialButton" type="button" onclick="saveInitialSurvey()">Save Initial Survey</button><button class="btn secondary" type="button" onclick="resetInitialSurveyForm()">Reset Form</button></div>
+      <div id="initialMessage" class="auth-message" role="status" aria-live="polite"></div>
     </div>
   </section>
 
@@ -656,6 +665,7 @@ function showPage(id,button) {
   document.getElementById('pageTitle').textContent=button.textContent.trim();
   if (id === 'vessel') loadVessels();
   if (id === 'hydro') loadHydroVessels();
+  if (id === 'initial') loadInitialVessels();
 }
 
 function renderSession(session) {
@@ -1040,6 +1050,127 @@ async function deleteVessel(id, name) {
   } catch (error) {
     console.error('Delete vessel error:', error);
     setVesselMessage('Gagal menghapus data: ' + (error.message || 'Kesalahan tidak diketahui'), true);
+  }
+}
+
+
+function setInitialMessage(message, isError=false) {
+  const el = document.getElementById('initialMessage');
+  if (!el) return;
+  el.textContent = message;
+  el.className = 'auth-message' + (isError ? ' vessel-message-error' : ' success');
+}
+
+async function loadInitialVessels() {
+  const select = document.getElementById('initialVesselSelect');
+  const client = window.supabaseClient;
+  if (!select || !client) return;
+  select.innerHTML = '<option value="">Loading vessels...</option>';
+  try {
+    const {data, error} = await client.from('vessels')
+      .select('id,barge_name,barge_id,default_water_density')
+      .order('barge_name', {ascending:true});
+    if (error) throw error;
+    select.replaceChildren();
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = data && data.length ? 'Select vessel...' : 'No vessel registered';
+    select.appendChild(placeholder);
+    (data || []).forEach(vessel => {
+      const option = document.createElement('option');
+      option.value = vessel.id;
+      option.textContent = `${vessel.barge_name} (${vessel.barge_id})`;
+      option.dataset.density = vessel.default_water_density ?? '';
+      select.appendChild(option);
+    });
+    select.onchange = () => {
+      const selected = select.options[select.selectedIndex];
+      const density = selected?.dataset?.density;
+      const densityInput = document.getElementById('initialDensity');
+      if (density && !densityInput.value) densityInput.value = Number(density).toFixed(4);
+    };
+  } catch (error) {
+    console.error('Load initial survey vessels error:', error);
+    select.innerHTML = '<option value="">Failed to load vessels</option>';
+    setInitialMessage('Gagal memuat daftar kapal: ' + (error.message || ''), true);
+  }
+}
+
+function resetInitialSurveyForm() {
+  ['initialSurveyNumber','initialVesselSelect','initialOperationType','initialReadingDate','initialDensity',
+   'initialForwardPort','initialForwardStarboard','initialMidshipPort','initialMidshipStarboard',
+   'initialAfterPort','initialAfterStarboard','initialNotes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('initialOperationType').value = 'loading';
+  setInitialMessage('');
+}
+
+async function saveInitialSurvey() {
+  const client = window.supabaseClient;
+  if (!client) return setInitialMessage('Koneksi Supabase belum tersedia.', true);
+  const survey_number = document.getElementById('initialSurveyNumber').value.trim();
+  const vessel_id = document.getElementById('initialVesselSelect').value;
+  const operation_type = document.getElementById('initialOperationType').value;
+  const dateValue = document.getElementById('initialReadingDate').value;
+  const observed_density = Number(document.getElementById('initialDensity').value);
+  const readingIds = ['initialForwardPort','initialForwardStarboard','initialMidshipPort',
+    'initialMidshipStarboard','initialAfterPort','initialAfterStarboard'];
+  const readingValues = readingIds.map(id => {
+    const raw = document.getElementById(id).value.trim();
+    return raw === '' ? NaN : Number(raw);
+  });
+  const notes = document.getElementById('initialNotes').value.trim() || null;
+
+  if (!survey_number || !vessel_id || !dateValue) {
+    return setInitialMessage('Survey Number, Vessel / Barge, dan Date and Time wajib diisi.', true);
+  }
+  if (!Number.isFinite(observed_density) || observed_density <= 0) {
+    return setInitialMessage('Observed Water Density harus diisi dengan angka lebih besar dari 0.', true);
+  }
+  if (readingValues.some(value => !Number.isFinite(value) || value < 0)) {
+    return setInitialMessage('Enam draft reading wajib diisi dengan angka 0 atau lebih.', true);
+  }
+
+  const button = document.getElementById('saveInitialButton');
+  button.disabled = true;
+  button.textContent = 'Saving...';
+  let createdSurveyId = null;
+  try {
+    const {data: survey, error: surveyError} = await client.from('survey_operations')
+      .insert({survey_number, vessel_id, operation_type})
+      .select('id').single();
+    if (surveyError) throw surveyError;
+    createdSurveyId = survey.id;
+
+    const {error: readingError} = await client.from('survey_draft_readings').insert({
+      survey_id: createdSurveyId,
+      survey_phase: 'initial',
+      reading_date: new Date(dateValue).toISOString(),
+      forward_port: readingValues[0],
+      forward_starboard: readingValues[1],
+      midship_port: readingValues[2],
+      midship_starboard: readingValues[3],
+      after_port: readingValues[4],
+      after_starboard: readingValues[5],
+      observed_density,
+      notes
+    });
+    if (readingError) throw readingError;
+    const savedId = createdSurveyId;
+    resetInitialSurveyForm();
+    setInitialMessage('Initial Survey berhasil disimpan. Survey ID: ' + savedId);
+  } catch (error) {
+    console.error('Save Initial Survey error:', error);
+    if (createdSurveyId) {
+      const {error: cleanupError} = await client.from('survey_operations').delete().eq('id', createdSurveyId);
+      if (cleanupError) console.error('Cleanup incomplete survey error:', cleanupError);
+    }
+    setInitialMessage('Gagal menyimpan Initial Survey: ' + (error.message || 'Kesalahan tidak diketahui'), true);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Save Initial Survey';
   }
 }
 
